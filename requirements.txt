@@ -1,0 +1,4 @@
+gunicorn
+selenium
+flask
+flask-wtf
