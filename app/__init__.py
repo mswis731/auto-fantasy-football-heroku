@@ -8,4 +8,4 @@ app.config.from_object(os.environ["APP_SETTINGS"])
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-from app import views
+from app import views, models

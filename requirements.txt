@@ -1,6 +1,7 @@
 gunicorn
 selenium
 psycopg2-binary
+pycrypto
 flask
 flask-wtf
 flask-sqlalchemy

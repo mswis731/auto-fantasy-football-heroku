@@ -40,11 +40,68 @@ CREATE TABLE public.alembic_version (
 ALTER TABLE public.alembic_version OWNER TO matt;
 
 --
+-- Name: users; Type: TABLE; Schema: public; Owner: matt; Tablespace: 
+--
+
+CREATE TABLE public.users (
+    id integer NOT NULL,
+    username character varying(120) NOT NULL,
+    password character varying(200)
+);
+
+
+ALTER TABLE public.users OWNER TO matt;
+
+--
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: matt
+--
+
+CREATE SEQUENCE public.users_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.users_id_seq OWNER TO matt;
+
+--
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: matt
+--
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: matt
+--
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
 -- Name: alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
 --
 
 ALTER TABLE ONLY public.alembic_version
     ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
+
+
+--
+-- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users_username_key; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_username_key UNIQUE (username);
 
 
 --
