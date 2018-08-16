@@ -1,4 +1,7 @@
 gunicorn
 selenium
+psycopg2-binary
 flask
 flask-wtf
+flask-sqlalchemy
+flask-migrate
