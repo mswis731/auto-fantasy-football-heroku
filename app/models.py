@@ -9,12 +9,31 @@ class User(db.Model):
     username = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200))
 
-    def __init__(self, username, password):
+    def __init__(self, username, password=None):
         self.username = username
-        self.password = User.encrypt_password(password)
+        self.password = User.encrypt_password(password) if password else None
+
+        user = User.query.filter_by(username=username).first()
+        self.is_matching_password = user != None and password == User.decrypt_password(user.password)
+
 
     def __repr__(self):
         return '<User %r>' % self.username
+
+    @property
+    def is_authenticated(self):
+        return self.id != None or (self.is_active and self.is_matching_password)
+
+    @property
+    def is_active(self):
+        return self.password != None and self.password != ""
+
+    @property
+    def is_anonymous(self):
+        return not self.is_authenticated
+
+    def get_id(self):
+        return str(self.id).decode("utf-8")
 
     @staticmethod
     def encrypt_password(plaintext):

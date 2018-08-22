@@ -1,12 +1,20 @@
-from app import app, db
+from app import app, db, login_manager
 from flask import request, render_template, url_for, redirect, jsonify
+from flask_login import login_required, current_user, login_user, logout_user
 from forms import LoginForm, SignupForm
 from models import User
 from tasks import verify_user_task
 
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(user_id)
+
 @app.route("/", methods=["GET", "POST"])
 def index():
-    return redirect(url_for("login"))
+    if not current_user.is_authenticated:
+        return redirect(url_for("login"))
+    else:
+        return redirect(url_for("wip"))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -20,9 +28,16 @@ def login():
         if user == None or password != User.decrypt_password(user.password):
             form.username.errors.append("Incorrect username or password")
         else:
+            login_user(user)
             return redirect(url_for("wip"))
 
     return render_template("login.html", form=form)
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("index"))
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -40,6 +55,7 @@ def signup():
             db.session.add(user)
             db.session.commit()
 
+            login_user(user)
             return redirect(url_for("wip"))
 
     return render_template("signup.html", form=form)
@@ -65,5 +81,6 @@ def task_status(task_id):
     return jsonify(response)
 
 @app.route("/wip")
+@login_required
 def wip():
-    return "Hello World!"
+    return render_template("wip.html")
