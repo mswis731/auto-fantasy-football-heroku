@@ -40,6 +40,41 @@ CREATE TABLE public.alembic_version (
 ALTER TABLE public.alembic_version OWNER TO matt;
 
 --
+-- Name: teams; Type: TABLE; Schema: public; Owner: matt; Tablespace: 
+--
+
+CREATE TABLE public.teams (
+    id integer NOT NULL,
+    name character varying(120) NOT NULL,
+    external_id character varying(120) NOT NULL,
+    user_id integer NOT NULL
+);
+
+
+ALTER TABLE public.teams OWNER TO matt;
+
+--
+-- Name: teams_id_seq; Type: SEQUENCE; Schema: public; Owner: matt
+--
+
+CREATE SEQUENCE public.teams_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.teams_id_seq OWNER TO matt;
+
+--
+-- Name: teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: matt
+--
+
+ALTER SEQUENCE public.teams_id_seq OWNED BY public.teams.id;
+
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: matt; Tablespace: 
 --
 
@@ -77,6 +112,13 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 -- Name: id; Type: DEFAULT; Schema: public; Owner: matt
 --
 
+ALTER TABLE ONLY public.teams ALTER COLUMN id SET DEFAULT nextval('public.teams_id_seq'::regclass);
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: matt
+--
+
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
@@ -86,6 +128,22 @@ ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_
 
 ALTER TABLE ONLY public.alembic_version
     ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
+
+
+--
+-- Name: teams_external_id_key; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
+--
+
+ALTER TABLE ONLY public.teams
+    ADD CONSTRAINT teams_external_id_key UNIQUE (external_id);
+
+
+--
+-- Name: teams_pkey; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
+--
+
+ALTER TABLE ONLY public.teams
+    ADD CONSTRAINT teams_pkey PRIMARY KEY (id);
 
 
 --
@@ -102,6 +160,14 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_username_key UNIQUE (username);
+
+
+--
+-- Name: teams_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: matt
+--
+
+ALTER TABLE ONLY public.teams
+    ADD CONSTRAINT teams_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
 
 
 --
