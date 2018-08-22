@@ -1,6 +1,7 @@
 from app import app, db
 from Crypto.Cipher import AES
 from Crypto import Random
+import re
 
 class User(db.Model):
     __tablename__ = "users"
@@ -61,3 +62,15 @@ class Team(db.Model):
 
     def __repr__(self):
         return "<Team (%s, %s, %s)>" % (self.name, self.external_id, self.user.username)
+
+    @staticmethod
+    def parse_url(url):
+        pattern = r'leagueId=(.*)&teamId=(.*)&seasonId=(.*)'
+        search = re.search(pattern, url)
+        if not search:
+            return None
+
+        league_id = search.group(1)
+        team_id = search.group(2)
+        season_id = search.group(3)
+        return "%s-%s-%s" % (league_id, team_id, season_id)
