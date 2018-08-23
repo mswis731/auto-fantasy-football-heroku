@@ -9,3 +9,4 @@ flask-migrate
 flask-login
 redis
 celery
+enum34

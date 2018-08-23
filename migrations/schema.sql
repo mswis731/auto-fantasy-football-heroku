@@ -24,6 +24,20 @@ CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
 
 
+--
+-- Name: status; Type: TYPE; Schema: public; Owner: matt
+--
+
+CREATE TYPE public.status AS ENUM (
+    'COMPLETE',
+    'ERRORED',
+    'FAILED',
+    'PENDING'
+);
+
+
+ALTER TYPE public.status OWNER TO matt;
+
 SET default_tablespace = '';
 
 SET default_with_oids = false;
@@ -75,6 +89,42 @@ ALTER SEQUENCE public.teams_id_seq OWNED BY public.teams.id;
 
 
 --
+-- Name: transactions; Type: TABLE; Schema: public; Owner: matt; Tablespace: 
+--
+
+CREATE TABLE public.transactions (
+    id integer NOT NULL,
+    drop_player character varying(120) NOT NULL,
+    add_player character varying(120) NOT NULL,
+    status public.status NOT NULL,
+    team_id integer NOT NULL
+);
+
+
+ALTER TABLE public.transactions OWNER TO matt;
+
+--
+-- Name: transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: matt
+--
+
+CREATE SEQUENCE public.transactions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.transactions_id_seq OWNER TO matt;
+
+--
+-- Name: transactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: matt
+--
+
+ALTER SEQUENCE public.transactions_id_seq OWNED BY public.transactions.id;
+
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: matt; Tablespace: 
 --
 
@@ -119,6 +169,13 @@ ALTER TABLE ONLY public.teams ALTER COLUMN id SET DEFAULT nextval('public.teams_
 -- Name: id; Type: DEFAULT; Schema: public; Owner: matt
 --
 
+ALTER TABLE ONLY public.transactions ALTER COLUMN id SET DEFAULT nextval('public.transactions_id_seq'::regclass);
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: matt
+--
+
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
@@ -147,6 +204,14 @@ ALTER TABLE ONLY public.teams
 
 
 --
+-- Name: transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
+--
+
+ALTER TABLE ONLY public.transactions
+    ADD CONSTRAINT transactions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: matt; Tablespace: 
 --
 
@@ -168,6 +233,14 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.teams
     ADD CONSTRAINT teams_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: transactions_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: matt
+--
+
+ALTER TABLE ONLY public.transactions
+    ADD CONSTRAINT transactions_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id);
 
 
 --
