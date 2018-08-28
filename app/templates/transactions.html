@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block stylesheets %}
+<style type="text/css">
+  button.icon-btn {
+    border: none;
+    padding: 0;
+    background: none;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+  <div style="margin-top: 50px">
+    <h1>Teams</h1>
+    <div id="teams" class="list-group" style="display: table">
+      {% for team in current_user.teams %}
+      <button type="button" team_id="{{ team.id }}" class="team-btn list-group-item list-group-item-action">{{ team.name }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <div style="margin-top: 50px">
+    <h1>Transactions</h1>
+    <div id="transactions"></div>
+  </div>
+  <div style="margin-top: 10px">
+    <form id="add-transaction">
+      {{ form.csrf_token }}
+      {{ form.team_id }}
+      <div class="row">
+        <div class="col">
+          {{ form.drop_player(class="form-control", placeholder="Drop Player") }}
+        </div>
+        <div class="col">
+          {{ form.add_player(class="form-control", placeholder="Add Player") }}
+        </div>
+          {{ form.add(class="btn btn-primary") }}
+        <div class="col">
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function() {
+    $(".team-btn").click(function() {
+      var prev = $("div#teams > button.active");
+      if (prev.length == 1 && prev[0] === this) return;
+
+      prev.toggleClass("active");
+      $(this).toggleClass("active")
+      var teamId = $(this).attr("team_id");
+      $("input#team_id").val(teamId);
+
+      refreshTransactions(teamId);
+    });
+
+    function refreshTransactions(teamId=null) {
+      if (teamId == null) {
+        teamId = $("div#teams > button.active").first().attr("team_id");
+      }
+      $.getJSON("/transactions/" + teamId, function(data){
+        var content;
+        if (data.length == 0) {
+          content = "<span>No transactions available</span>";
+        } else {
+          var tableBody="<tbody>";
+          for (var i = 0; i < data.length; i++) {
+            var transaction = data[i];
+            var row = `
+              <tr>
+                <th scope="row">${i+1}</th>
+                <td>${transaction["drop_player"]}</td>
+                <td>${transaction["add_player"]}</td>
+                <td>${transaction["status"]}</td>
+                <td>
+                  <div class="transaction-actions">
+                    <input type="hidden" class="transaction-id" value="${transaction["id"]}">
+                    <button class="btn remove-btn icon-btn"><i class="fas fa-trash-alt"></i></button>
+                  </div>
+                <td>
+              </tr>
+            `;
+            tableBody += row;
+          }
+          tableBody += "\n</tbody>"
+
+          var tableHeader = `
+            <thead>
+              <tr>
+                <th scope='col'>#</th>
+                <th scope='col'>Drop Player</th>
+                <th scope='col'>Add Player</th>
+                <th scope='col'>Status</th>
+                <th scope='col'></th>
+              </tr>
+            </thead>
+          `;
+
+          content = `<table class='table'>${tableHeader}${tableBody}</table>`;
+        }
+
+        $("div#transactions").html(content);
+
+        $("button.remove-btn").click(function(event) {
+          var transaction_id = $(this).parent().find("input.transaction-id").first().val();
+          $.ajax({
+            type: "POST",
+            url: `/remove-transaction/${transaction_id}`,
+            success: function(data, status, request) {
+              refreshTransactions();
+            },
+            error: function() { }
+          });
+          return false;
+        });
+      });
+
+      $("form#add-transaction").unbind("submit").submit(function(event) {
+        $.ajax({
+          type: "POST",
+          url: "/add-transaction",
+          data: $(this).serialize(),
+          success: function(data, status, request) {
+            refreshTransactions();
+            $("input#drop_player").val("");
+            $("input#add_player").val("");
+            $("input#drop_player").focus();
+          },
+          error: function() { }
+        });
+        return false;
+      });
+    }
+
+    $("div#teams > button:first").trigger("click");
+  });
+</script>
+{% endblock %}

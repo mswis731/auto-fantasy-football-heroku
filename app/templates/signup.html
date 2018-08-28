@@ -42,7 +42,7 @@
 
 {% block scripts %}
 <script>
-  $(function() {
+  $(document).ready(function() {
     var verified = false;
     function start_verify_task() {
       $.ajax({

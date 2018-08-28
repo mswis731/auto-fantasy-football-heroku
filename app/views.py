@@ -1,8 +1,8 @@
 from app import app, db, login_manager
 from flask import request, render_template, url_for, redirect, jsonify
 from flask_login import login_required, current_user, login_user, logout_user
-from forms import LoginForm, SignupForm
-from models import User
+from forms import LoginForm, SignupForm, TransactionForm
+from models import User, Team, Transaction
 from tasks import verify_user_task
 
 @login_manager.user_loader
@@ -14,7 +14,7 @@ def index():
     if not current_user.is_authenticated:
         return redirect(url_for("login"))
     else:
-        return redirect(url_for("wip"))
+        return redirect(url_for("list_transactions"))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -29,7 +29,7 @@ def login():
             form.username.errors.append("Incorrect username or password")
         else:
             login_user(user)
-            return redirect(url_for("wip"))
+            return redirect(url_for("list_transactions"))
 
     return render_template("login.html", form=form)
 
@@ -56,7 +56,7 @@ def signup():
             db.session.commit()
 
             login_user(user)
-            return redirect(url_for("wip"))
+            return redirect(url_for("list_transactions"))
 
     return render_template("signup.html", form=form)
 
@@ -70,7 +70,6 @@ def verify_user():
     return jsonify({}), 202, { 'location': url_for('task_status',
                                                    task_id=task.id) }
 
-
 @app.route('/task-status/<task_id>')
 def task_status(task_id):
     task = verify_user_task.AsyncResult(task_id)
@@ -80,7 +79,48 @@ def task_status(task_id):
     }
     return jsonify(response)
 
-@app.route("/wip")
+@app.route('/transactions/<team_id>')
+def transactions(team_id):
+    def transaction_info(transaction):
+        return {
+            "id": transaction.id,
+            "drop_player": transaction.drop_player,
+            "add_player": transaction.add_player,
+            "status": transaction.status.value
+        }
+
+    transactions = Team.query.get(team_id).transactions
+    response = [ transaction_info(transaction) for transaction in transactions ]
+    return jsonify(response)
+
+@app.route("/add-transaction", methods=["POST"])
+def add_transaction():
+    form = TransactionForm(request.form)
+    team_id = form.team_id.data
+    drop_player = form.drop_player.data
+    add_player = form.add_player.data
+
+    if form.validate():
+        transaction = Transaction(
+            drop_player=drop_player,
+            add_player=add_player,
+            team_id=team_id,
+            status=Transaction.Status.PENDING
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        return jsonify({}), 200, {}
+    return jsonify({}), 404, {}
+
+@app.route("/remove-transaction/<transaction_id>", methods=["POST"])
+def remove_transaction(transaction_id):
+    transaction = Transaction.query.get(transaction_id)
+    db.session.delete(transaction)
+    db.session.commit()
+    return jsonify({}), 200, {}
+
+@app.route("/transactions")
 @login_required
-def wip():
-    return render_template("wip.html")
+def list_transactions():
+    form = TransactionForm(request.form)
+    return render_template("transactions.html", form=form)
