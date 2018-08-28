@@ -10,7 +10,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200))
-    teams = db.relationship("Team", backref="user", lazy=True)
+    teams = db.relationship("Team", backref="user", lazy=True, cascade="all, delete-orphan")
 
     def __init__(self, username, password=None):
         self.username = username
@@ -60,7 +60,7 @@ class Team(db.Model):
     name = db.Column(db.String(120), nullable=False)
     external_id = db.Column(db.String(120), unique=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    transactions = db.relationship("Transaction", backref="team", lazy=True)
+    transactions = db.relationship("Transaction", backref="team", lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return "<Team (%s, %s, %s)>" % (self.name, self.external_id, self.user.username)
