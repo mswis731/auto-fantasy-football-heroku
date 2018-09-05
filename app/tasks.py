@@ -1,10 +1,12 @@
 from app import app, db, celery
-from models import User, Team
+from models import User, Team, Transaction
 
+import time
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait # available since 2.4.0
 from selenium.webdriver.support import expected_conditions as EC # available since 2.26.0
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 
 
 def get_driver():
@@ -91,5 +93,130 @@ def update_teams_task(user_id):
         db.session.add(team)
 
     db.session.commit()
+
+    return 0
+
+
+@celery.task
+def transactions_task(team_id):
+    team = Team.query.get(team_id)
+    if not team:
+        return 1 # team does not exist
+    user = User.query.get(team.user_id)
+    if not user:
+        return 2 # user does not exist
+
+    username = user.username
+    password = User.decrypt_password(user.password)
+    driver = login_user(username, password)
+    if not driver:
+        return 3 # user login failed
+
+    web_teams = WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located((By.XPATH, "//li[@class='teams fantasy']/div/ul/li[@class='team']/a[@itemprop='url']")))
+    found_team = False
+    team_url = None
+    for web_team in web_teams:
+        name = web_team.find_element_by_xpath(".//span[@class='link-text']").get_attribute('innerHTML')
+        if name == team.name:
+            team_url = web_team.get_attribute("href")
+            found_team = True
+            break
+    if not found_team:
+        return 4 # team was not found
+
+    fantasy_tab = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//li[@class='pillar logo fantasy fantasy']/a")))
+    ActionChains(driver).move_to_element(fantasy_tab).perform()
+
+    WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//li[@class='teams fantasy']/div/ul/li[@class='team']/a[@href='{}']".format(team_url)))).click()
+    FANTASY_TEAM_HOMEPAGE = driver.current_url
+
+    transactions = Transaction.query.filter_by(team_id=team.id, status=Transaction.Status.PENDING)
+
+    for transaction in transactions:
+        if driver.current_url != FANTASY_TEAM_HOMEPAGE:
+            driver.get(FANTASY_TEAM_HOMEPAGE)
+
+        drop_player = transaction.drop_player
+        add_player = transaction.add_player
+
+        drop_available = False
+        driver.get_screenshot_as_file("screenshots/page1.png")
+        try:
+            WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.LINK_TEXT, drop_player)))
+            drop_available = True
+        except:
+            pass
+
+        if not drop_available:
+            transaction.status = Transaction.Status.FAILED
+            db.session.commit()
+
+            continue
+
+        # Click Add Player -> All
+        add_players_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//ul[@id='games-subnav-links']/li[@class=' games-subnav-drop-btn']/a")))
+        ActionChains(driver).move_to_element(add_players_element).perform()
+        WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.LINK_TEXT, "All"))).click()
+        # Type in add player into search bar
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//input[@id='lastNameInput'][@type='text']"))).send_keys(add_player)
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//input[@class='lastNameFilterButton'][@type='button']"))).click()
+
+        driver.refresh()
+        add_available = False
+        try:
+            player_table = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//table[@id='playertable_0']")))
+            player_name_link = WebDriverWait(player_table, 5).until(EC.presence_of_element_located((By.LINK_TEXT, add_player)))
+            player_row = player_name_link.find_element_by_xpath("../..")
+            add_available = True
+        except:
+            pass
+
+        if not add_available:
+            transaction.status = Transaction.Status.FAILED
+            db.session.commit()
+
+            continue
+
+        WAIT_TIME = 60
+        MAX_TRIES = 100
+        transaction_button = None
+        step = 0
+        while True:
+            step += 1
+            if step > MAX_TRIES:
+                break
+
+            transaction_button = WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "transactionButton")))[0]
+            transaction_type = transaction_button.get_attribute("title")
+
+            if transaction_type == "Claim":
+                time.sleep(WAIT_TIME)
+                continue
+            break
+
+        transaction_button.click()
+
+        transaction_successful = False
+        try:
+            drop_player_elem = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.LINK_TEXT, drop_player)))
+            checkbox = drop_player_elem.find_element_by_xpath("../..//td[@class='playertableCheckbox']")
+            driver.execute_script("return arguments[0].scrollIntoView();", checkbox)
+            checkbox.click()
+            submit_roster_btn = driver.find_element_by_xpath("//input[@value='Submit Roster']")
+            driver.execute_script("return arguments[0].scrollIntoView();", submit_roster_btn)
+            submit_roster_btn.click()
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//input[@value='Confirm']"))).click()
+            transaction_successful = True
+        except:
+            pass
+
+        if not transaction_successful:
+            transaction.status = Transaction.Status.FAILED
+            db.session.commit()
+
+            continue
+
+        transaction.status = Transaction.Status.COMPLETE
+        db.session.commit()
 
     return 0
