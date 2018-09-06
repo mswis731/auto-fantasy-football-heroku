@@ -1,7 +1,7 @@
 from app import app, db, celery
 from models import User, Team, Transaction
 
-import time
+import time, traceback
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait # available since 2.4.0
 from selenium.webdriver.support import expected_conditions as EC # available since 2.26.0
@@ -99,6 +99,8 @@ def update_teams_task(user_id):
 
 @celery.task
 def transactions_task(team_id):
+    print("Team %i: Starting transactions task" % team_id)
+
     team = Team.query.get(team_id)
     if not team:
         return 1 # team does not exist
@@ -111,6 +113,8 @@ def transactions_task(team_id):
     driver = login_user(username, password)
     if not driver:
         return 3 # user login failed
+
+    print("Team %i: Login successful" % team_id)
 
     web_teams = WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located((By.XPATH, "//li[@class='teams fantasy']/div/ul/li[@class='team']/a[@itemprop='url']")))
     found_team = False
@@ -127,10 +131,14 @@ def transactions_task(team_id):
     fantasy_tab = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//li[@class='pillar logo fantasy fantasy']/a")))
     ActionChains(driver).move_to_element(fantasy_tab).perform()
 
+    print("Team %i: Fantasy team found and team page accessible" % team_id)
+
     WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//li[@class='teams fantasy']/div/ul/li[@class='team']/a[@href='{}']".format(team_url)))).click()
     FANTASY_TEAM_HOMEPAGE = driver.current_url
 
     transactions = Transaction.query.filter_by(team_id=team.id, status=Transaction.Status.PENDING)
+
+    print("Team %i: Running through %i transaction(s)" % (team_id, transactions.count()))
 
     for transaction in transactions:
         if driver.current_url != FANTASY_TEAM_HOMEPAGE:
@@ -139,13 +147,15 @@ def transactions_task(team_id):
         drop_player = transaction.drop_player
         add_player = transaction.add_player
 
+        print("Team %i, Transaction %i: Starting <%s, %s>" % (team_id, transaction.id, drop_player, add_player))
+
         drop_available = False
-        driver.get_screenshot_as_file("screenshots/page1.png")
         try:
             WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.LINK_TEXT, drop_player)))
             drop_available = True
         except:
-            pass
+            print("Team %i, Transaction %i: %s (DROP) not found" % (team_id, transaction.id, drop_player))
+            traceback.print_exc()
 
         if not drop_available:
             transaction.status = Transaction.Status.FAILED
@@ -169,7 +179,8 @@ def transactions_task(team_id):
             player_row = player_name_link.find_element_by_xpath("../..")
             add_available = True
         except:
-            pass
+            print("Team %i, Transaction %i: %s (ADD) not found" % (team_id, transaction.id, add_player))
+            traceback.print_exc()
 
         if not add_available:
             transaction.status = Transaction.Status.FAILED
@@ -181,6 +192,7 @@ def transactions_task(team_id):
         MAX_TRIES = 100
         transaction_button = None
         step = 0
+        claim_not_present = False
         while True:
             step += 1
             if step > MAX_TRIES:
@@ -190,9 +202,19 @@ def transactions_task(team_id):
             transaction_type = transaction_button.get_attribute("title")
 
             if transaction_type == "Claim":
+                print("Team %i, Transaction %i: Still on claim. Retrying...%i" % (team_id, transaction.id, step))
                 time.sleep(WAIT_TIME)
                 continue
+            claim_not_present = True
             break
+
+        if not claim_not_present:
+            print("Team %i, Transaction %i: Waiver claims still present after max tries" % (team_id, transaction.id))
+            transaction.status = Transaction.Status.ERRORED
+            db.session.commit()
+
+            continue
+
 
         transaction_button.click()
 
@@ -208,15 +230,20 @@ def transactions_task(team_id):
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//input[@value='Confirm']"))).click()
             transaction_successful = True
         except:
-            pass
+            print("Team %i, Transaction %i: Confirm transaction failed" % (team_id, transaction.id))
+            traceback.print_exc()
 
         if not transaction_successful:
-            transaction.status = Transaction.Status.FAILED
+            transaction.status = Transaction.Status.ERRORED
             db.session.commit()
 
             continue
 
         transaction.status = Transaction.Status.COMPLETE
         db.session.commit()
+
+        print("Team %i, Transaction %i: Transaction successful" % (team_id, transaction.id))
+
+    print("Team %i: Finishing transactions task" % team_id)
 
     return 0
