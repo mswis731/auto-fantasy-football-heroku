@@ -2,6 +2,7 @@ import os
 
 class Config(object):
     DEBUG = False
+    SITE_URL = os.environ["SITE_URL"]
     SECRET_KEY = os.environ["APP_SECRET_KEY"]
     SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
     SQLALCHEMY_TRACK_MODIFICATIONS = False
